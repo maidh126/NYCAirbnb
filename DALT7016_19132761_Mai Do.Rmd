@@ -1,0 +1,410 @@
+---
+title: "Airbnb New York"
+author: "Mai D."
+date: "4/14/2021"
+output:
+  pdf_document: default
+---
+
+
+# 1.	Dataset selection and justification 
+
+## Overview
+
+Since 2008, Airbnb has helped guests and hosts to travel in a more unique, personalised way. The company went from a single air mattress for rent to be a global corporation valued at more than 30 billion dollars, thanks to its energetic founder, Brian Chesky. 2020 was supposed to be the golden year for Airbnb as it would go public and issue the worlds' most sought-after stock. Tragically, Coronavirus happened. The pandemic gutted the travel sector. (Tuong, 2020)
+
+However, it cannot be denied that Airbnb has redefined Hospitality. The sharing economy and vacation rentals are among the hottest topics that have touched millions of lives worldwide. Airbnb is a worldwide marketplace that allows users to book or to offer lodging and tourism experiences. Airbnb has been instrumental in the hospitality service and currently operates in more than 191 countries. This service is accessible via their website or mobile apps. 
+
+This visualisation project aims to analyse and determine popular rental neighbourhoods in New York and to estimate how much it would cost if someone were planning a trip here. The visualisations are designed to explore popular neighbourhoods based on the traveller’s preferences if they travelled or transited in New York and its neighbourhoods.
+
+To acquire the most up-to-date data, this project used New York City’s dataset from InsideAirbnb, which is an independent platform offering non-commercial datasets from Airbnb. The primary csv dataset is from New York in June 2020 with over 106 different dimensions. It was interesting sorting through the data and finding relevant dimensions for the visualisations. The data is extracted into a secondary subset containing a number of listings per neighbourhood, which is used exclusively in the visualisations.
+
+## Domain Questions
+
+Airbnb is most frequently used by tourists, so we explore the various factors that influence tourists' decisions on where to stay when travelling. The interactive map will explore different variables from datasets using spatial visualisation and answer questions regarding price variations and ratings across different locations of New York City.
+
+The storyboard has been categorised into four categories:
+
+•	Overview of Airbnb
+
+•	Property analysis
+
+•	Pricing analysis
+
+•	Host analysis
+
+Some of the target questions are: 
+
+•	What is the average price by accommodation types?
+
+•	What kinds of accommodation types are more prevalent in the different New York neighbourhoods?
+
+•	Number of Reviews over time
+
+•	Host/Super Host vs Price over time
+
+
+# Data examination and transformations
+
+The dataset comprises three main tables: listings, reviews and neighbourhoods.
+The listing data offers an immense amount of information concerning individual Airbnb listings in NYC. The data was relatively clean, need to be eliminated and made simple adjustments such as trimming, transforming value types, and using text facet clustering to make sure everything was formatted correctly. Some other filter, merge, combine etc., depend on each graph's purpose, will be included in RMarkdown.
+
+•	filter the dimensions
+
+•	remove NA and $ in price
+
+•	remove the duplicate entry from the map
+
+```{r lib, message=FALSE, warning=FALSE, include=FALSE, paged.print=TRUE}
+install.packages("usethis", repos = "http://cran.us.r-project.org")
+library(tidyverse)
+library(maps)
+library(mapproj)
+library(RColorBrewer)
+library(scales)
+library(rgdal)
+library(devtools)
+library(choroplethr)
+library(choroplethrMaps)
+library(GGally)
+library(lubridate)
+library(zoo)
+library(scales)
+library(ggmap)
+library(scales)
+library(stringr)
+library(zipcode)
+library(leaflet)
+library(extracat)
+library(gridExtra)
+library(readr)
+library(dplyr)
+library(geojsonio)
+library(ggplot2)
+library(sp)
+library(viridis)
+library(shiny)
+library(shinythemes)
+require(shinyjs)
+library(plotly)
+library(shinydashboard)
+library(tidyverse)
+library(devtools)
+library(formatR)
+```
+
+
+```{r transform, echo=TRUE, message=FALSE, warning=FALSE}
+## For Report
+# Read the data sets
+setwd("/Users/maido/OneDrive - Oxford Brookes University/Data Visualisation/Airbnb/")
+
+listings <- read_csv("listings.csv")
+
+# Maps
+neighmap <- geojson_read("neighbourhoods.geojson", what = "sp")
+
+# Remove duplicate entry from neighmap
+neighmap <- neighmap[which(!duplicated(neighmap$neighbourhood)), ]
+
+
+# Filter the dimensions
+ny <- listings %>% select (host_id, host_name, name, host_since, host_is_superhost, 
+                           longitude, latitude, neighbourhood_group_cleansed, 
+                           neighbourhood_cleansed, price, room_type, property_type,
+                           review_scores_location, number_of_reviews)
+
+# Remove $
+ny$price <- as.numeric(gsub("\\$", "", ny$price))
+
+# Remove NA
+ny <- ny %>% drop_na(price)
+```
+
+The rows in price columns containing null values are dropped to preserve all of the information when performing exploratory research. The symbol $ in price also is removed.
+
+```{r map, echo=TRUE, message=FALSE, warning=FALSE}
+setwd("/Users/maido/OneDrive - Oxford Brookes University/Data Visualisation/Airbnb/")
+
+# Maps
+neighmap <- geojson_read("neighbourhoods.geojson", what = "sp")
+
+# Remove duplicate entry from neighmap
+neighmap <- neighmap[which(!duplicated(neighmap$neighbourhood)),]
+```
+
+Breakdown of the different dimensions of listings which we selected for the purpose of domain questions:
+
+•	host_id (num): Host’s ID
+
+•	host_name (chr): Host’s name
+
+•	name (chr): Name of listing
+
+•	host_since (date): Host since
+
+•	host_is_superhost (logi): Super Host – true or false
+
+•	longitude (num): Longitude of the listing
+
+•	latitude (num): Latitude of the listing
+
+•	neighbourhood_group_cleansed (chr): Specific borough where the listing is located.
+
+•	neighbourhood_cleansed (chr): Specific neighbourhood where the listing is located.
+
+•	price (chr): Price in USD of renting the accommodation for one night.
+
+•	room_type (chr): Category of the room/accommodation type being listed.
+
+•	property_type (chr): Category of the property type being listed.
+
+•	review_scores_location (num): Review scores are based on Location.
+
+•	number_of_reviews (num): Number of reviews.
+
+The different dimensions of reviews: detailed reviews given by the guests with six attributes. Key attributes include listing_id (discrete), reviewer_id (discrete), comment (textual) and date (DateTime).
+
+The neighbourhoods file is in geojson format, which can be used to produce New York City's interactive maps.
+
+A quick look at the data shows that:
+
+•	49,530 unique listings in New York City in total. The first listing was belonged to a host named Jenny and was created in August 2008 in Washington Heights, Manhattan.
+
+•	The price for a listing ranges from $10 per night to $999 per night. The listings with $999 price tags are in Manhattan for Entire home/apt or Hotel room types.
+
+•	Over 1 million reviews have been written by guests since then.
+
+
+# 3.	Analysis of the Data
+
+## Interactive map
+
+This is a basic interactive map with all New York City listings appearing in group style. We can click on clusters to see the listings they include. This provides a zoomed view that contains details about Listing Name, Hostname, Property type, Room type, Price of the property. This visualisation helps to explore every listing geographically. It gives an overall sense of how the listings are distributed across neighbourhoods. We can see from the map that most of the listings are gathered around Manhattan and Brooklyn, followed by Queens and The Bronx, and the lowest number of listings are in Staten Island.
+
+The location score should be a solid indicator of the appeal of the neighbourhoods. Neighbourhoods highly rated will tend to have better connected (subway stations) or closer to city hotspots (Times Square, Empire State, Wall Street).
+
+
+```{r maps, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE, paged.print=TRUE}
+leaflet(ny) %>%
+  addTiles() %>%
+  addMarkers(~longitude, ~latitude,labelOptions = labelOptions(noHide = F),
+             clusterOptions = markerClusterOptions(),
+             popup = paste0("<b> Name: </b>", 
+                            ny$name , "<br/><b> Host Name: </b>", 
+                            ny$host_name, "<br> <b> Price: </b>", 
+                            ny$price, "<br/><b> Room Type: </b>", 
+                            ny$room_type, "<br/><b> Property Type: </b>", 
+                            ny$property_type
+  )) %>% 
+  setView(-73.93, 40.71, zoom = 10) %>%
+  addProviderTiles("CartoDB.Positron")
+```
+
+![Interactive map](/Users/maido/OneDrive - Oxford Brookes University/Data Visualisation/Airbnb/map.png)
+
+## Percentage of Listing type vs Location
+
+```{r plot1, echo=FALSE, message=FALSE, warning=FALSE, paged.print=TRUE}
+propertydf <-  ny %>% group_by(neighbourhood_group_cleansed, property_type) %>% summarize(Freq = n())
+propertydf <- propertydf %>% filter(property_type %in% c("Apartment","House","Condominium","Townhouse", "Loft"))
+totalproperty<-  ny %>% filter(property_type %in% c("Apartment","House","Condominium","Townhouse", "Loft"))%>% group_by(neighbourhood_group_cleansed) %>% summarize(sum = n())
+propertyratio <- merge(propertydf, totalproperty, by="neighbourhood_group_cleansed")
+propertyratio <- propertyratio %>% mutate(ratio = Freq/sum)
+
+ggplot(propertyratio, aes(x=neighbourhood_group_cleansed, y=ratio, fill = property_type)) +
+  geom_bar(position = "dodge",stat="identity") + theme_bw() +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_manual("Property Type", values=c("#e06f69", "#f6c438", "#357b8a", "#7db5b5", "#59c6f3")) +
+  xlab("Neighborhood") + ylab("Percentage") +
+  labs(title="Percentage of Listing Type by Borough", subtitle="Airbnb New York", 
+       caption="Source: Inside Airbnb") + 
+  theme(plot.title = element_text(face = "bold")) +
+  theme(plot.subtitle = element_text(face = "bold", color = "grey35")) +
+  theme(plot.caption = element_text(color = "grey68"))
+```
+
+The chart displays the ratio of property type by borough. 
+
+•	Apartment listings are the highest in number in all neighbourhoods except Staten Island. Staten Island has more 'House' than 'Apartments'. This analysis seems intuitive since Staten Island is not densely populated and has much space. Followed by Condominiums which are also not as popular in Staten Island.
+
+•	House listings are the second most common property type, but not in Manhattan. Most properties in Manhattan are apartments (approximately 90%), and houses are the least common. Next is Brooklyn, with 80% apartment listings, followed by Queens with approximately 60% apartment listings.
+
+•	Queens and Bronx also have plenty of house listings. Queens has over 25% house listings, which is highest after Staten Island.
+
+•	Town House style properties are also common in New York: about 10% of listings in all boroughs except Manhattan.
+
+•	Loft style properties are only common in Brooklyn, where they constitute 10% of listings.
+
+## Mean of Price by Property type
+
+```{r reviews, echo=FALSE, message=FALSE, warning=FALSE, paged.print=TRUE}
+property_price <- ny %>% group_by(property_type) %>% summarise_at(vars(price), mean)
+property_price <- property_price %>% filter(property_type %in% c("Apartment","House","Condominium","Townhouse", "Loft"))
+
+# Plot 
+ggplot(property_price, aes(x=property_type, y=price, fill=property_type)) +
+  geom_bar(stat="identity", position=position_dodge())+ theme_bw() +
+  scale_fill_manual("Room Type", values=c("#e06f69", "#f6c438", "#357b8a", "#7db5b5","#59c6f3")) +
+  geom_text(aes(label=format(round(price,2), nsmall = 2)), vjust=1.6, color="black",
+            position = position_dodge(1), size=2.5)+
+  labs(title="Property type vs Average Price", 
+       subtitle="Airbnb New York", caption="Source: Inside Airbnb",
+       x="Property Type", y="Price") + 
+  scale_y_continuous(labels = dollar)+
+  theme(plot.title = element_text(face = "bold")) +
+  theme(plot.subtitle = element_text(face = "bold", color = "grey35")) +
+  theme(plot.caption = element_text(color = "grey68"))
+```
+
+Follow by popularity, Loft and Condominium style listings are less popular and have the highest mean price, which almost double house style listings. Apartments style listings have a reasonable price. However, the prices correlate with Location, and what we see here that Staten Island and Queens are the cheapest, not that houses are cheaper than apartments.
+
+## Number of Reviews over time by Host
+
+Airbnb lists its hosts into two categories - Super Hosts and Regular Hosts.
+According to Airbnb policies (Airbnb, n.d.), to become a Super Hosts, four criteria should be met by the hosts: 
+
+•	Provide a minimum of ten stays in a year.
+
+•	Maintain 90% response rate
+
+•	More than 80% 5-star reviews.
+
+•	Zero cancellations (with exceptions)
+
+```{r popular, echo=FALSE, message=FALSE, warning=FALSE, paged.print=TRUE}
+ggplot(ny, aes(x = host_since, y = number_of_reviews, color = host_is_superhost)) + 
+  geom_point()+ geom_abline() + theme_bw() +
+  theme(axis.text.x = element_text(angle = 0)) + 
+  labs(title="Number of Reviews Over Time", subtitle="Airbnb New York", 
+       caption="Source: Inside Airbnb") + 
+  xlab("Host since") + ylab("Number of reviews") +
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), axis.line = element_line(colour = "black"))+
+  theme(plot.title = element_text(face = "bold")) +
+  theme(plot.subtitle = element_text(face = "bold", color = "grey35")) +
+  theme(plot.caption = element_text(color = "grey68"))
+```
+
+Here we have a scatterplot showing the number of reviews for hosts compared to when they became hosts. The colours separate hosts from Super Hosts. Hosts who are not Super Hosts (regular hosts) tend not to have many reviews. However, some hosts have many reviews though they are not Super Hosts.
+
+## The popularity of Airbnb in New York
+
+```{r superhost, echo=FALSE, message=FALSE, warning=FALSE, paged.print=TRUE}
+reviews <- read_csv("reviews.csv")
+
+reviewsNum <- reviews %>% group_by(date = reviews$date) %>% summarise(number = n())
+
+ggplot(reviewsNum, aes(date, number)) +
+  geom_point(na.rm=TRUE, color = "#007A87", alpha=0.5) + geom_smooth(color = "#992578")+
+  ggtitle("Number of Reviews across years",
+          subtitle = "Airbnb New York") +
+  labs(x = "Year", y = "Number of reviews", caption="Source: Inside Airbnb") +
+  theme(plot.title = element_text(face = "bold")) +
+  theme(plot.subtitle = element_text(face = "bold", color = "grey35")) +
+  theme(plot.caption = element_text(color = "grey68"))
+```
+
+According to Airbnb, about 50% of guests give reviews for listings. Therefore, studying the number of reviews will give us a reasonable estimate of demand. The number of listings receiving reviews has exponentially increased over the years, indicating an exponential increase in demand. 
+
+It can be seen that the numbers of reviews/demands also depicts a seasonal pattern. Every year there is a peak and drop in the demand, suggesting that some months are busier than the others.
+
+However, from the end of 2019, it started decreasing and became very little in 2020. It can be explained by the annual pattern where there are fewer reviews in the winter and the 2020 pandemic. Traveling is restricted and has a massive effect on tourism. 
+
+## Regular Host/Super Host vs Price Over Time
+
+```{r meanprice, echo=FALSE, message=FALSE, warning=FALSE, paged.print=TRUE}
+ggplot(ny, aes(x = host_since, y = price, color = host_is_superhost)) + 
+  geom_col()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  labs(title="Host/Superhost vs Price Over Time", 
+       subtitle="Airbnb New York", caption="Source: Inside Airbnb",
+       x="Host since", y="Price") + 
+  theme_bw() +
+  scale_y_continuous(labels = dollar) +
+  theme(panel.border = element_blank(), panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        axis.line = element_line(colour = "black"))+
+  theme(plot.title = element_text(face = "bold")) +
+  theme(plot.subtitle = element_text(face = "bold", color = "grey35")) +
+  theme(plot.caption = element_text(color = "grey68"))
+```
+
+As for the graph, it seems as though the people who have changed the most for Airbnb are Regular Hosts. Also, since 2014, hosts tend to set higher prices.
+
+\pagebreak
+# 4.	Shiny web app
+
+## Home Page
+
+This page gives an overview of New York Airbnb and the Shiny web app. There are three tabs are combined:
+
+•	Map tab: How neighbourhoods compare in terms of average price and average review. 
+
+•	Neighbourhood Tab: The most cost-effective neighbourhood.
+
+•	Compare Tab: Compare any two Neighbourhoods side by side.
+
+The number of listings until June 2020 in New York is 49,530, the mean price is $137, and 37,207 hosts are counted. 
+
+![Home Page](/Users/maido/OneDrive - Oxford Brookes University/Data Visualisation/Airbnb/homepage.png)
+
+\pagebreak
+## Map Page
+
+This page contains three panels:
+
+•	A set of radio buttons and sliders where we can select information which we want to filter, such as Room Type, Listing Price, Average Rating, Number of Reviews. There are two maps on this page, map by average review or average price.
+
+•	Map insight gives a short comment about the areas in New York City-based on Review or Price.
+
+•	Legend: Average Review has the average location review rates from under 7.0 to 10.0; some areas have unknown reviews. The average price has ranged from 0 to over $1000 a night.
+
+![Map Page 1](/Users/maido/OneDrive - Oxford Brookes University/Data Visualisation/Airbnb/map1.png)
+
+The graph confirms the interactive graph assessment, and Manhattan receives the highest location scores for the downtown region. In Staten Island, the areas close to the State Park have the highest location rating. Brooklyn neighbourhoods close to Manhattan tend to have higher location ratings. Looking at the New York metro system in Brooklyn, it is interesting to observe that the high-rated areas correspond to metro lines. The same is true for The Bronx, where subway lines do not go.
+
+\pagebreak
+![Map Page 2](/Users/maido/OneDrive - Oxford Brookes University/Data Visualisation/Airbnb/map2.png)
+This map follows the previous location rating by the neighbourhood map. It is obvious that high-rated locations will also tend to be costly (demand versus supply). This map will be an excellent opportunity to check the previous results.
+
+Again, downtown Manhattan is the clear winner for high rents, which is also true for the Brooklyn neighbourhood near Manhattan.
+
+The East Village area in Downtown Manhattan is an obvious exception, where both the Rental and Location ratings tend to be lower than the surrounding areas. It would be interesting to conduct two studies:
+
+•	Find areas with high ratings and low rents: The State Park on Staten Island (discussed in the previous chart) is one such area where rents are relatively low despite having the highest location rating. Another sweet spot is located North East of Brooklyn. 
+
+•	Find low rating area but high rent: The Elm Park area on Staten Island has disproportionately high rents but low location ratings. Other such locations can be found in the North Bronx region.
+
+\pagebreak
+## Neighbourhood Page
+
+This page contains a panel and a bubble graph:
+
+•	The radio button selects preference such as Borough, Room Type, Number of Neighbourhood and Average Price Range.
+
+•	Bubble Plot: The top number of budgeted Neighbourhoods displays those with the lowest average price that satisfy the user input criteria. The number of listings in that neighbourhood is reflected by the size of the bubble.
+
+![Neighbourhood Page](/Users/maido/OneDrive - Oxford Brookes University/Data Visualisation/Airbnb/neig.png)
+
+The bubble plot shows an example of private rooms in Harlem, Manhattan, where the average price is $77/night, the average review is 9.42, and the number of listings is 1541. Harlem has the biggest bubble, indicating the neighbourhood has the highest number of listings for private rooms in Manhattan.
+
+\pagebreak
+## Compare Page
+
+This page contains four graphs about the Frequency of listing type and price per night for different listing type in two preferred neighbourhoods:
+
+![Compare Page](/Users/maido/OneDrive - Oxford Brookes University/Data Visualisation/Airbnb/compare.png)
+
+In this example, Washington Heights has no hotel room listings, and 65% of listings are for private rooms. However, in Murray Hill 79% of listings are for an entire home/apt and also has some hotel room listings. Most of the Washington Heights listings are lower than $100/night whilst most in Murray Hill are higher than $100/night.
+
+# 5. Summary
+
+The Airbnb dataset provides a fantastic source to understand New York's bustling rental landscape better. With 50,000 listings registered in the last 12 years, New York has proven to be one of Airbnb's fastest-growing cities. The years between 2015 and 2020 were the Airbnb boom when more and more people adopted Airbnb as a service provider; the number of reviews and listings are doubled every year. Downtown Manhattan and the surrounding areas of Brooklyn have by far the highest concentration of listings. Staten Island and the Bronx have fewer people who want to stay.
+
+
+
+
+
+
+
